@@ -1,0 +1,48 @@
+# Must-Gather runner: mg-runner (Go) + oc + must-gather-clean.
+#
+#   podman build -t quay.io/dwaiting/oct-must-gather-runner:0.1.1-ocp4.22 \
+#     --build-arg OCP_VERSION=4.22 -f runner/Containerfile runner/
+#
+# OCP_VERSION selects the oc client (stable-<minor> on mirror.openshift.com) so
+# the image tag's -ocp<minor> matches the oc that runs `oc adm must-gather`.
+
+FROM docker.io/library/golang:1.23 AS build
+WORKDIR /src
+COPY go.mod ./
+COPY *.go ./
+RUN go vet ./... && go test ./... && \
+    CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/mg-runner .
+
+FROM registry.access.redhat.com/ubi9/ubi-minimal:latest AS tools
+ARG TARGETARCH=amd64
+ARG OCP_VERSION=4.22
+ARG MUST_GATHER_CLEAN_VERSION=v0.0.5
+RUN microdnf install -y tar gzip && microdnf clean all
+WORKDIR /dl
+RUN set -eux; \
+    case "${TARGETARCH}" in \
+      amd64) oc_tgz=openshift-client-linux-amd64-rhel9.tar.gz ;; \
+      arm64) oc_tgz=openshift-client-linux-arm64-rhel9.tar.gz ;; \
+      *) echo "unsupported arch ${TARGETARCH}"; exit 1 ;; \
+    esac; \
+    base="https://mirror.openshift.com/pub/openshift-v4/clients/ocp/stable-${OCP_VERSION}"; \
+    curl -fsSLO "${base}/${oc_tgz}"; \
+    curl -fsSL "${base}/sha256sum.txt" | grep " ${oc_tgz}\$" | sha256sum -c -; \
+    tar -xzf "${oc_tgz}" oc; \
+    mgc_tgz="must-gather-clean-linux-${TARGETARCH}.tar.gz"; \
+    mgc="https://github.com/openshift/must-gather-clean/releases/download/${MUST_GATHER_CLEAN_VERSION}"; \
+    curl -fsSLO "${mgc}/${mgc_tgz}"; \
+    curl -fsSL "${mgc}/SHA256_SUM" | grep " ${mgc_tgz}\$" | sed 's/ /  /' | sha256sum -c -; \
+    tar -xzf "${mgc_tgz}" must-gather-clean; \
+    chmod 0755 oc must-gather-clean; \
+    ./oc version --client
+
+FROM registry.access.redhat.com/ubi9/ubi-minimal:latest
+# oc adm must-gather copies results out with rsync (tar is oc's fallback).
+RUN microdnf install -y rsync tar && microdnf clean all
+COPY --from=tools /dl/oc /dl/must-gather-clean /usr/local/bin/
+COPY --from=build /out/mg-runner /usr/local/bin/mg-runner
+ENV WORK_DIR=/var/lib/must-gather
+USER 1001
+EXPOSE 8443
+ENTRYPOINT ["/usr/local/bin/mg-runner"]

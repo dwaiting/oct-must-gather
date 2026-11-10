@@ -1,0 +1,211 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: oct-must-gather
+  labels:
+    app.kubernetes.io/part-of: oct-must-gather
+---
+# The runner calls the API server only with the signed-in console user's token
+# (ConsolePlugin proxy authorization: UserToken). Its own ServiceAccount gets
+# no RBAC and no mounted token.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: must-gather-runner
+  namespace: oct-must-gather
+  labels:
+    app.kubernetes.io/part-of: oct-must-gather
+automountServiceAccountToken: false
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oct-must-gather
+  namespace: oct-must-gather
+  labels:
+    app: oct-must-gather
+    app.kubernetes.io/part-of: oct-must-gather
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: oct-must-gather
+  template:
+    metadata:
+      labels:
+        app: oct-must-gather
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: plugin
+          image: quay.io/dwaiting/oct-must-gather:0.1.1-ocp4.22
+          ports:
+            - containerPort: 9443
+              protocol: TCP
+          volumeMounts:
+            - name: plugin-serving-cert
+              readOnly: true
+              mountPath: /var/serving-cert
+          resources:
+            requests:
+              cpu: 10m
+              memory: 50Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop: [ALL]
+      volumes:
+        - name: plugin-serving-cert
+          secret:
+            secretName: plugin-serving-cert
+            defaultMode: 420
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: oct-must-gather
+  namespace: oct-must-gather
+  labels:
+    app: oct-must-gather
+  annotations:
+    service.beta.openshift.io/serving-cert-secret-name: plugin-serving-cert
+spec:
+  ports:
+    - name: 9443-tcp
+      protocol: TCP
+      port: 9443
+      targetPort: 9443
+  selector:
+    app: oct-must-gather
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: must-gather-runner
+  namespace: oct-must-gather
+  labels:
+    app: must-gather-runner
+    app.kubernetes.io/part-of: oct-must-gather
+spec:
+  replicas: 1 # job state is in memory: do not scale out
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: must-gather-runner
+  template:
+    metadata:
+      labels:
+        app: must-gather-runner
+    spec:
+      serviceAccountName: must-gather-runner
+      automountServiceAccountToken: false
+      # Time for oc to delete its temporary must-gather namespace on shutdown.
+      terminationGracePeriodSeconds: 120
+      containers:
+        - name: runner
+          image: quay.io/dwaiting/oct-must-gather-runner:0.1.1-ocp4.22
+          ports:
+            - containerPort: 8443
+              protocol: TCP
+          env:
+            - name: WORK_DIR
+              value: /var/lib/must-gather
+            - name: JOB_TTL
+              value: 4h
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8443
+              scheme: HTTPS
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8443
+              scheme: HTTPS
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          volumeMounts:
+            - name: runner-serving-cert
+              readOnly: true
+              mountPath: /var/serving-cert
+            - name: kube-root-ca
+              readOnly: true
+              mountPath: /var/run/kube-root-ca
+            - name: work
+              mountPath: /var/lib/must-gather
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: "2"
+              memory: 2Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop: [ALL]
+      volumes:
+        - name: runner-serving-cert
+          secret:
+            secretName: runner-serving-cert
+            defaultMode: 420
+        - name: kube-root-ca
+          configMap:
+            name: kube-root-ca.crt
+        # Gathered data and archives (deleted after download TTL). A full
+        # must-gather is usually a few hundred MB to a few GB; uses node
+        # ephemeral storage.
+        - name: work
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: must-gather-runner
+  namespace: oct-must-gather
+  labels:
+    app: must-gather-runner
+  annotations:
+    service.beta.openshift.io/serving-cert-secret-name: runner-serving-cert
+spec:
+  ports:
+    - name: 8443-tcp
+      protocol: TCP
+      port: 8443
+      targetPort: 8443
+  selector:
+    app: must-gather-runner
+---
+apiVersion: console.openshift.io/v1
+kind: ConsolePlugin
+metadata:
+  name: oct-must-gather
+spec:
+  displayName: Must-Gather (Community Tools)
+  backend:
+    type: Service
+    service:
+      name: oct-must-gather
+      namespace: oct-must-gather
+      port: 9443
+      basePath: /
+  proxy:
+    - alias: runner
+      authorization: UserToken
+      endpoint:
+        type: Service
+        service:
+          name: must-gather-runner
+          namespace: oct-must-gather
+          port: 8443

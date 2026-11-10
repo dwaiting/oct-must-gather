@@ -1,0 +1,41 @@
+.mg-card {
+  max-width: 64rem;
+}
+
+.mg-nested {
+  margin-top: var(--pf-t--global--spacer--sm, 8px);
+}
+
+.mg-case-input {
+  max-width: 12rem;
+}
+
+.mg-filename {
+  font-family: var(--pf-t--global--font--family--mono, monospace);
+  word-break: break-all;
+}
+
+.mg-muted {
+  color: var(--pf-t--global--text--color--subtle, #6a6e73);
+  font-size: var(--pf-t--global--font--size--sm, 0.875rem);
+}
+
+.mg-job {
+  border: var(--pf-t--global--border--width--regular, 1px) solid var(--pf-t--global--border--color--default, #d2d2d2);
+  border-radius: var(--pf-t--global--border--radius--small, 6px);
+}
+
+.mg-log {
+  max-height: 24rem;
+  overflow: auto;
+}
+
+.mg-log pre {
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.mg-disk-list {
+  margin: var(--pf-t--global--spacer--sm, 8px) 0 var(--pf-t--global--spacer--sm, 8px) var(--pf-t--global--spacer--lg, 24px);
+  list-style: disc;
+}

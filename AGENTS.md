@@ -69,6 +69,14 @@ Operator images are **read from the cluster**, never hardcoded: the UI watches C
 
 Build the runner per OCP minor so `oc` matches: `--build-arg OCP_VERSION=4.22` for `-ocp4.22`, `4.21` for `-ocp4.21`. Both images get both tags (see `oct-semver.mdc`).
 
+## Image pinning
+
+Images are pinned **by digest** (digest only, with the tag in a comment; `skopeo` and CRI-O handle `tag@digest` inconsistently):
+
+- `deploy/install.yaml`: plugin and runner `@sha256:` of the `-ocp4.22` tags. After pushing a release, look up the new digests (e.g. `skopeo inspect --format '{{.Digest}}' docker://quay.io/dwaiting/oct-must-gather:<semver>-ocp4.22`) and update both lines and their comments.
+- `Containerfile`, `runner/Containerfile`: base images pinned to their multi-arch index digests. Refresh them deliberately (security updates) and rebuild.
+- Storefront bundle `catalog/deploy/oct-must-gather.yaml`: pin the **runner** by digest, but keep the **plugin** image as the combined tag. The storefront replaces the plugin image with the catalog row's image on Add/Update and reads the installed version from that tag (`semverFromImage`), and `validate-catalog.sh` compares it with the catalog row. Strip comment lines from that copy: the storefront chunk holding all bundles sits just under webpack's 250,000-byte size hint.
+
 ## OpenShift and extension versions
 
 Two axes in the catalog: git tag **`v0.x.x`** (semver) and optional branch **`ocp-X.Y`** when PatternFly or APIs diverge. Image tags **always** `<semver>-ocp<major.minor>`. **Always publish both** `<semver>-ocp4.21` and `<semver>-ocp4.22`. `main` tracks **4.22**, PatternFly 6.

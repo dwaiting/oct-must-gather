@@ -1,4 +1,5 @@
-FROM docker.io/library/node:20-alpine AS build
+# node:20-alpine (multi-arch index), pinned by digest
+FROM docker.io/library/node@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293 AS build
 
 WORKDIR /app
 
@@ -10,7 +11,8 @@ RUN yarn install --immutable
 COPY . .
 RUN yarn build
 
-FROM docker.io/library/nginx:1.27-alpine
+# nginx:1.27-alpine (multi-arch index), pinned by digest
+FROM docker.io/library/nginx@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10
 
 RUN chmod -R 777 /var/cache/nginx /var/run /var/log/nginx /usr/share/nginx/html /etc/nginx
 

@@ -44,8 +44,8 @@ oc set image deploy/must-gather-runner -n oct-must-gather runner=quay.io/<you>/o
 **Otherwise** deploy the YAML in this repo with your image:
 
 ```bash
-sed -e 's|quay.io/dwaiting/oct-must-gather:[^ ]*|quay.io/<you>/oct-must-gather:dev|' \
-    -e 's|quay.io/dwaiting/oct-must-gather-runner:[^ ]*|quay.io/<you>/oct-must-gather-runner:dev|' \
+sed -e 's|quay.io/dwaiting/oct-must-gather[:@][^ ]*|quay.io/<you>/oct-must-gather:dev|' \
+    -e 's|quay.io/dwaiting/oct-must-gather-runner[:@][^ ]*|quay.io/<you>/oct-must-gather-runner:dev|' \
     deploy/install.yaml | oc apply -f -
 ```
 

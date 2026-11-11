@@ -38,7 +38,8 @@ spec:
       automountServiceAccountToken: false
       containers:
         - name: plugin
-          image: quay.io/dwaiting/oct-must-gather:0.1.1-ocp4.22
+          # oct-must-gather:0.1.1-ocp4.22, pinned by digest
+          image: quay.io/dwaiting/oct-must-gather@sha256:3d5e9d7ed0ff5dce4d0a9d78fe8bd9db7abb10dac2bce057035005a5c55c73bc
           ports:
             - containerPort: 9443
               protocol: TCP
@@ -110,7 +111,8 @@ spec:
       terminationGracePeriodSeconds: 120
       containers:
         - name: runner
-          image: quay.io/dwaiting/oct-must-gather-runner:0.1.1-ocp4.22
+          # oct-must-gather-runner:0.1.1-ocp4.22, pinned by digest
+          image: quay.io/dwaiting/oct-must-gather-runner@sha256:47f0036b6034a61b8cd08487e9372d47f3e308e4a6c020c424bee7850ecdd57d
           ports:
             - containerPort: 8443
               protocol: TCP

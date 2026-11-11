@@ -6,14 +6,16 @@
 # OCP_VERSION selects the oc client (stable-<minor> on mirror.openshift.com) so
 # the image tag's -ocp<minor> matches the oc that runs `oc adm must-gather`.
 
-FROM docker.io/library/golang:1.23 AS build
+# golang:1.23 (multi-arch index), pinned by digest
+FROM docker.io/library/golang@sha256:60deed95d3888cc5e4d9ff8a10c54e5edc008c6ae3fba6187be6fb592e19e8c0 AS build
 WORKDIR /src
 COPY go.mod ./
 COPY *.go ./
 RUN go vet ./... && go test ./... && \
     CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/mg-runner .
 
-FROM registry.access.redhat.com/ubi9/ubi-minimal:latest AS tools
+# ubi9/ubi-minimal:latest (multi-arch index), pinned by digest
+FROM registry.access.redhat.com/ubi9/ubi-minimal@sha256:ecb40c7bdfa5b0bb71e978c98c7cf56ce38edf1f8fb3561078acbc4b13698c07 AS tools
 ARG TARGETARCH=amd64
 ARG OCP_VERSION=4.22
 ARG MUST_GATHER_CLEAN_VERSION=v0.0.5
@@ -37,7 +39,7 @@ RUN set -eux; \
     chmod 0755 oc must-gather-clean; \
     ./oc version --client
 
-FROM registry.access.redhat.com/ubi9/ubi-minimal:latest
+FROM registry.access.redhat.com/ubi9/ubi-minimal@sha256:ecb40c7bdfa5b0bb71e978c98c7cf56ce38edf1f8fb3561078acbc4b13698c07
 # oc adm must-gather copies results out with rsync (tar is oc's fallback).
 RUN microdnf install -y rsync tar && microdnf clean all
 COPY --from=tools /dl/oc /dl/must-gather-clean /usr/local/bin/
